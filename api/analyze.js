@@ -1,60 +1,55 @@
 // NutriTime — Vercel Serverless Function (Gemini AI — FREE)
 // Place at: api/analyze.js
 
+// api/analyze.js
+
 const handler = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin',  '*');
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST')   return res.status(405).json({ error: 'POST only' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({
-      error: 'GEMINI_API_KEY missing — go to Vercel → Settings → Environment Variables and add it'
-    });
+    return res.status(500).json({ error: 'API Key missing in environment' });
   }
 
   const { base64 } = req.body || {};
   if (!base64) return res.status(400).json({ error: 'No image received' });
 
   try {
-const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
+    // Using the stable model name confirmed by your curl test
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=${apiKey}`;
+
     const geminiRes = await fetch(url, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{
           parts: [
             { inlineData: { mimeType: 'image/jpeg', data: base64 } },
-            { text: `You are a nutrition AI. Identify every food item in this photo.
-Return ONLY a valid JSON array, no markdown, no text outside the array:
-[{"name":"Food","portionG":150,"calories":280,"energyKJ":1172,"proteinG":12,"carbsG":35,"fatG":8,"calciumMg":120,"ironMg":2,"vitaminCMg":5,"sodiumMg":320,"fiberG":3}]
-One object per food item. Estimate realistic portions. Return ONLY the JSON array.` }
+            { text: "Identify every food visible. Return ONLY a valid JSON array." }
           ]
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 }
+        }]
       })
     });
 
+    const data = await geminiRes.json();
+    
+    // Check for API errors
     if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      return res.status(geminiRes.status).json({ error: 'Gemini error: ' + errText });
+        return res.status(geminiRes.status).json({ error: data });
     }
 
-    const data    = await geminiRes.json();
     const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    const cleaned = rawText.replace(/```json|```/g, '').trim();
-    const foods   = JSON.parse(cleaned);
+    res.status(200).json(JSON.parse(rawText));
 
-    return res.json(foods);
-
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 };
 
-handler.config = { api: { bodyParser: { sizeLimit: '6mb' } } };
-
+// CRITICAL: This line is required for Vercel to find your function
 module.exports = handler;
