@@ -7,8 +7,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NutriTime">
 <meta name="theme-color" content="#4f46e5">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon.png">
 <title>NutriTime ISO</title>
 <style>
 /* ── Reset ─────────────────────────────────────── */
@@ -792,32 +790,13 @@ function triggerShutter(){
 async function liveAI(b64,preview){
   showSpinner();
   try{
-    // Call our Vercel serverless function (api/analyze.js → Gemini)
-    const res=await fetch('/api/analyze',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({base64:b64})
-    });
-
-    if(res.ok){
-      const foods=await res.json();
-      applyAI(foods,preview);
-      hideSpinner();
-      return;
-    }
-
-    // api/analyze returned an error — show what went wrong
-    const err=await res.json().catch(()=>({error:'Unknown error'}));
-    hideSpinner();
-    toast('AI error: '+(err.error||res.status)+' — using demo mode','warning');
-    runDemo(preview);
-
-  }catch(e){
-    // Network error — probably /api/analyze not reachable
-    hideSpinner();
-    toast('Could not reach AI — check Vercel deployment — using demo mode','warning');
-    runDemo(preview);
-  }
+    let res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base64:b64})}).catch(()=>null);
+    if(!res||!res.ok){
+      res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1024,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},{type:'text',text:'Identify every food visible. Return ONLY a valid JSON array:\n[{"name":"Food","portionG":100,"calories":200,"energyKJ":837,"proteinG":8,"carbsG":30,"fatG":5,"calciumMg":100,"ironMg":2,"vitaminCMg":5,"sodiumMg":300,"fiberG":3}]'}]}]})});
+      if(res.ok){const d=await res.json();const raw=d.content.map(b=>b.text||'').join('');applyAI(JSON.parse(raw.replace(/```json|```/g,'').trim()),preview);hideSpinner();return;}
+    }else{applyAI(await res.json(),preview);hideSpinner();return;}
+  }catch(e){}
+  hideSpinner();runDemo(preview);
 }
 
 function applyAI(foods,preview){
@@ -832,6 +811,12 @@ function applyAI(foods,preview){
 // DEMO AI
 // ═══════════════════════════════════════════════════════════
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
+function showAIError(msg){
+  const card=document.getElementById('aiCard');
+  card.style.display='block';
+  card.innerHTML=`<div style="background:#fef2f2;border:1px solid rgba(239,68,68,.3);border-radius:18px;padding:16px;display:flex;gap:12px;align-items:flex-start"><span style="font-size:24px;flex-shrink:0">⚠️</span><div><div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:4px">AI scan failed — showing demo</div><div style="font-size:11px;color:#7f1d1d;line-height:1.6">${msg}</div><div style="font-size:11px;color:#6b7280;margin-top:6px">Check: Vercel → Settings → Environment Variables → GEMINI_API_KEY is set</div></div></div>`;
+}
+
 async function runDemo(preview){
   showSpinner();
   const steps=[[350,'Detecting food…'],[700,'Identifying ingredients…'],[1050,'Computing nutrients…'],[1400,'Calculating ISO values…']];
@@ -1206,14 +1191,6 @@ syncAll();
 calcNut();
 buildCal();
 window.addEventListener('beforeunload',persist);
-
-// ── Register service worker (enables offline + PWA install) ────────────
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js')
-    .then(()=>console.log('SW registered'))
-    .catch(e=>console.warn('SW failed:',e));
-}
-
 // First run tip
 if(!localStorage.getItem('nt_welcomed')){
   localStorage.setItem('nt_welcomed','1');
