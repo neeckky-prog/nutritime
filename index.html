@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NutriTime">
+  <meta name="theme-color" content="#4f46e5">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.png">
+  <title>NutriTime ISO Pro</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={darkMode:'class',theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],mono:['JetBrains Mono','monospace']}}}}</script>
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{overscroll-behavior:none}
+    .custom-scrollbar::-webkit-scrollbar{width:3px}
+    .custom-scrollbar::-webkit-scrollbar-thumb{background:rgba(156,163,175,.25);border-radius:9999px}
+    .page{display:none}.page.active{display:block}
+    /* Range slider */
+    input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;outline:none;cursor:pointer}
+    input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:2.5px solid #4f46e5;box-shadow:0 1px 5px rgba(0,0,0,.18);cursor:pointer;transition:transform .1s}
+    input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2)}
+    /* Progress bars */
+    .prog{height:4px;border-radius:2px;background:#e2e8f0;overflow:hidden}
+    .dark .prog{background:#1e293b}
+    .prog-fill{height:100%;border-radius:2px;transition:width .5s ease}
+    /* Calendar */
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+    .cal-day{aspect-ratio:1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:10px;font-weight:600;color:#94a3b8;transition:all .15s;position:relative}
+    .cal-day:hover{background:#f1f5f9}.dark .cal-day:hover{background:#1e293b}
+    .cal-day.has-data{color:#1e293b}.dark .cal-day.has-data{color:#f1f5f9}
+    .cal-day.today{border:1.5px solid #4f46e5;color:#4f46e5}
+    .cal-day.selected{background:#eef2ff}.dark .cal-day.selected{background:#1e1b4b}
+    .cal-dot{width:4px;height:4px;border-radius:50%;position:absolute;bottom:3px}
+    /* Animations */
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+    .spin{animation:spin .75s linear infinite}
+    .fade-up{animation:fadeUp .3s ease}
+    .blink{animation:blink 1s ease-in-out infinite}
+    /* Bottom sheet */
+    .sheet-wrap{transition:opacity .25s;pointer-events:none;opacity:0}
+    .sheet-wrap.open{pointer-events:all;opacity:1}
+    .sheet-slide{transition:transform .3s cubic-bezier(.4,0,.2,1);transform:translateY(100%)}
+    .sheet-wrap.open .sheet-slide{transform:translateY(0)}
+    /* Toast */
+    @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    .toast{animation:toastIn .25s ease}
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 min-h-screen flex items-center justify-center p-4 font-sans transition-colors duration-300">
+
+<div id="app" class="w-full max-w-[402px] h-[874px] bg-white dark:bg-slate-950 rounded-[56px] shadow-[0_24px_70px_-12px_rgba(0,0,0,.28)] border-[11px] border-slate-900 relative overflow-hidden flex flex-col select-none transition-colors duration-300">
+
+  <!-- Notch -->
+  <div class="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-7 bg-slate-900 rounded-full z-50 flex items-center justify-center">
+    <div class="w-2 h-2 rounded-full bg-slate-800 absolute left-4"></div>
+    <div class="w-12 h-1 bg-slate-800 rounded-full opacity-30"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="pt-11 px-5 pb-3 flex justify-between items-center bg-white/85 dark:bg-slate-950/85 backdrop-blur-md z-40 border-b border-slate-100 dark:border-slate-900 shrink-0">
+    <div>
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">NutriTime ISO</span>
+      </div>
+      <p id="appHeaderTitle" class="text-xl font-extrabold text-slate-800 dark:text-white tracking-tight mt-0.5">Scan Studio</p>
+    </div>
+    <span id="liveTime" class="font-mono text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-2.5 py-1 rounded-lg">00:00:00</span>
+  </header>
+
+  <!-- Main scroll -->
+  <main class="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/50 dark:bg-slate-900/40 pb-24" id="mainScroll">
+
+    <!-- ═══════════════ SCAN TAB ═══════════════ -->
+    <div id="page-scan" class="page active p-4 space-y-4">
+
+      <!-- Daily kJ progress bar -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div class="flex justify-between items-baseline mb-2">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Daily Energy</span>
+          <span class="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
+            <span id="dailyKJ">0</span> / <span id="dailyTarget">8700</span> kJ
+          </span>
+        </div>
+        <div class="prog"><div id="dailyBar" class="prog-fill bg-indigo-500" style="width:0%"></div></div>
+        <div class="flex justify-between mt-1.5">
+          <span class="text-[9px] text-slate-400" id="dailyPct">0% of daily target</span>
+          <button onclick="saveMealToHistory()" class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline">＋ Save meal</button>
+          <button onclick="saveMeal()" class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline">+ Save meal</button>
+        </div>
+      </div>
+
+      <!-- Cabinet filters -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Supplements</span>
+          <span class="text-[9px] bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold px-2 py-0.5 rounded-full">Live Sync</span>
+        </div>
+        <div id="mainPageFilters" class="grid grid-cols-2 gap-2"></div>
+      </div>
+
+      <!-- Camera viewfinder -->
+      <div class="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-200 dark:border-slate-700 shadow-md" style="aspect-ratio:4/3">
+        <!-- Static placeholder -->
+        <img id="camPlaceholder" src="https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=600&q=80" class="absolute inset-0 w-full h-full object-cover opacity-85" alt="">
+        <!-- Live video -->
+        <video id="camVideo" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover hidden"></video>
+        <!-- Hidden canvas for capture -->
+        <canvas id="camCanvas" class="hidden"></canvas>
+        <!-- Captured still preview -->
+        <img id="captureStill" class="absolute inset-0 w-full h-full object-cover hidden z-10" alt="">
+
+        <!-- HUD top -->
+        <div class="absolute top-0 left-0 right-0 p-3 flex justify-between items-start bg-gradient-to-b from-black/60 to-transparent z-20">
+          <div class="flex items-center gap-2 bg-black/40 backdrop-blur px-2.5 py-1 rounded-lg border border-white/10">
+            <span id="camDot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+            <span id="camLabel" class="font-mono text-[9px] text-white/70 tracking-widest font-bold">DEMO MODE</span>
+          </div>
+          <button id="camBtn" onclick="toggleCam()" class="text-[10px] font-bold text-white bg-indigo-600/80 border border-indigo-400/40 px-3 py-1.5 rounded-xl backdrop-blur transition-all" style="min-height:36px;min-width:44px">📷 Enable Camera</button>
+        </div>
+
+        <!-- AI bounding box -->
+        <div id="aiBBox" class="absolute inset-0 z-20 pointer-events-none">
+          <div class="absolute border-2 border-emerald-400 rounded-2xl shadow-[0_0_12px_rgba(52,211,153,.35)]" style="top:22%;left:28%;width:44%;height:50%">
+            <span class="absolute -top-5 left-0 font-mono text-[9px] text-emerald-400 bg-slate-950/85 px-1.5 py-0.5 rounded whitespace-nowrap">AI Smart Eye Active</span>
+          </div>
+        </div>
+
+        <!-- Demo mode banner -->
+        <div id="demoBanner" class="absolute top-0 left-0 right-0 z-25 hidden" style="z-index:25">
+          <div class="bg-amber-500/90 text-white text-[9px] font-bold text-center py-1 tracking-wide">
+            ⚠ DEMO — not your real food. Enable camera to scan a real meal.
+          </div>
+        </div>
+
+        <!-- Analyzing overlay -->
+        <div id="analyzingOverlay" class="absolute inset-0 bg-slate-950/75 backdrop-blur-sm z-30 hidden flex-col items-center justify-center gap-3">
+          <div class="w-11 h-11 rounded-full border-2 border-indigo-400 border-t-transparent spin"></div>
+          <div class="text-center">
+            <p class="text-white text-xs font-bold">Analyzing food…</p>
+            <p id="analyzeStep" class="text-slate-400 font-mono text-[10px] mt-1">Detecting items</p>
+          </div>
+        </div>
+
+        <!-- Shutter -->
+        <div class="absolute bottom-0 left-0 right-0 p-4 flex justify-center bg-gradient-to-t from-black/60 to-transparent z-20">
+          <button onclick="triggerShutter()" class="w-14 h-14 rounded-full bg-white/20 border-4 border-white/80 flex items-center justify-center backdrop-blur hover:bg-white/30 transition-all active:scale-90">
+            <div class="w-10 h-10 rounded-full bg-white/90"></div>
+          </button>
+        </div>
+        <div id="shutterMask" class="absolute inset-0 bg-white pointer-events-none opacity-0 z-40 transition-opacity duration-150"></div>
+      </div>
+
+      <!-- AI result card (hidden until scan) -->
+      <div id="aiCard" class="hidden bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm fade-up"></div>
+
+      <!-- Portion sliders -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div class="flex justify-between items-center mb-4">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Portion Amounts</span>
+          <button onclick="toggleIngForm()" class="text-xs text-indigo-600 dark:text-indigo-400 font-extrabold hover:underline">+ Add food</button>
+        </div>
+
+        <!-- Add ingredient form -->
+        <div id="ingForm" class="hidden bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 space-y-2 mb-4">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Add food manually</p>
+          <input type="text" id="ingName" list="foodHints" placeholder="Food name (e.g. Brown Rice)"
+            class="w-full text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          <datalist id="foodHints">
+            <option value="Chicken Breast"><option value="Brown Rice"><option value="Whole Milk">
+            <option value="Greek Yogurt"><option value="Oats"><option value="Salmon">
+            <option value="Banana"><option value="Broccoli"><option value="Egg">
+            <option value="Sweet Potato"><option value="Avocado"><option value="Orange Juice">
+          </datalist>
+          <div class="grid grid-cols-2 gap-2">
+            <select id="ingUnit" class="text-xs px-2 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+              <option value="g">g (grams)</option><option value="mL">mL</option>
+              <option value="tbsp">tbsp</option><option value="tsp">tsp</option><option value="pc">piece</option>
+            </select>
+            <input type="number" id="ingKJ"  placeholder="kJ / unit"        class="text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <input type="number" id="ingCa"  placeholder="Calcium mg/unit"  class="text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <input type="number" id="ingPr"  placeholder="Protein g/unit"   class="text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <input type="number" id="ingFe"  placeholder="Iron mg/unit"     class="text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+            <input type="number" id="ingVc"  placeholder="Vitamin C mg/unit" class="text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button onclick="addCustomIng()" class="flex-1 bg-indigo-600 text-white font-bold text-xs py-2 rounded-xl">Add</button>
+            <button onclick="toggleIngForm()" class="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs px-4 py-2 rounded-xl">Cancel</button>
+          </div>
+        </div>
+
+        <div id="sliders" class="space-y-4"></div>
+      </div>
+
+      <!-- 8-nutrient grid with RDI bars -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-3">Nutrients · % of daily target</span>
+        <div id="nutriGrid" class="grid grid-cols-2 gap-2"></div>
+      </div>
+
+      <!-- Biochemical safety panel -->
+      <div id="safetyPanel" class="rounded-2xl p-4 border flex gap-3 items-start shadow-sm transition-all duration-300 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <span id="safetyIcon" class="text-xl shrink-0 mt-0.5">⏳</span>
+        <div>
+          <h4 id="safetyTitle" class="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wide">Scanning…</h4>
+          <p id="safetyDesc" class="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 mt-0.5">Scan a meal or adjust portions to see supplement interactions.</p>
+        </div>
+      </div>
+    </div><!-- /scan -->
+
+    <!-- ═══════════════ HISTORY TAB ═══════════════ -->
+    <div id="page-history" class="page p-4 space-y-4">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div class="flex justify-between items-center mb-3">
+          <button onclick="calPrev()" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-base font-bold">‹</button>
+          <span id="calTitle" class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider"></span>
+          <button onclick="calNext()" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-base font-bold">›</button>
+        </div>
+        <div class="grid grid-cols-7 mb-1">
+          <span class="text-center text-[9px] font-bold text-slate-400">Su</span><span class="text-center text-[9px] font-bold text-slate-400">Mo</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">Tu</span><span class="text-center text-[9px] font-bold text-slate-400">We</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">Th</span><span class="text-center text-[9px] font-bold text-slate-400">Fr</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">Sa</span>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+      <div id="dayDetail" class="hidden bg-white dark:bg-slate-900 rounded-2xl p-4 border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-3 fade-up">
+        <div class="flex justify-between items-center">
+          <span id="dayLbl" class="text-xs font-bold text-slate-700 dark:text-slate-300"></span>
+          <div class="flex gap-2">
+            <span id="dayKJ" class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400"></span>
+            <span id="dayCa" class="text-[10px] font-bold text-blue-600 dark:text-blue-400"></span>
+          </div>
+        </div>
+        <div id="dayMeals" class="space-y-2"></div>
+      </div>
+      <div id="histEmpty" class="text-center py-10 space-y-2">
+        <p class="text-3xl">📋</p>
+        <p class="text-xs font-bold text-slate-400">No meals logged yet</p>
+        <p class="text-[10px] text-slate-300 dark:text-slate-600">Scan food and tap "Save meal" to track your day</p>
+      </div>
+    </div><!-- /history -->
+
+    <!-- ═══════════════ CABINET TAB ═══════════════ -->
+    <div id="page-cabinet" class="page p-4 space-y-4">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Add supplement</span>
+        <!-- FIX: was duplicate id="addName" — now one input with datalist -->
+        <input type="text" id="addName" list="suppList" placeholder="Type or choose a supplement"
+          class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <datalist id="suppList">
+          <option value="Vitamin D3"><option value="Vitamin C"><option value="Vitamin B12">
+          <option value="Vitamin B Complex"><option value="Multivitamin"><option value="Iron Tablet">
+          <option value="Magnesium"><option value="Zinc"><option value="Calcium">
+          <option value="Potassium"><option value="Omega-3 Fish Oil"><option value="Creatine Monohydrate">
+          <option value="Whey Protein"><option value="Folate"><option value="Biotin">
+          <option value="Melatonin"><option value="Ashwagandha"><option value="Electrolyte Powder">
+        </datalist>
+        <div class="flex gap-2">
+          <input type="number" id="addDose" placeholder="Dose (e.g. 500)" min="0"
+            class="flex-1 text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <select id="addUnit" class="w-24 text-xs px-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold">
+            <option value="mg">mg</option><option value="mcg">mcg</option><option value="g">g</option>
+            <option value="mL">mL</option><option value="IU">IU</option>
+            <option value="tablet">tablet</option><option value="capsule">capsule</option>
+          </select>
+        </div>
+        <input type="text" id="addFreq" placeholder="Frequency (e.g. 1× daily, with food)"
+          class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <button onclick="addCabinetItem()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all active:scale-[.98]">+ Save to cabinet</button>
+      </div>
+      <div id="cabinetList" class="space-y-2"></div>
+    </div><!-- /cabinet -->
+
+    <!-- ═══════════════ HISTORY TAB (new) ═══════════════ -->
+    <div id="page-history" class="page p-4 space-y-4">
+
+      <!-- Calendar -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div class="flex justify-between items-center mb-3">
+          <button onclick="calPrev()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">‹</button>
+          <span id="calTitle" class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider"></span>
+          <button onclick="calNext()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">›</button>
+        </div>
+        <!-- Day headers -->
+        <div class="grid grid-cols-7 mb-1">
+          <span class="text-center text-[9px] font-bold text-slate-400">Su</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">Mo</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">Tu</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">We</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">Th</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">Fr</span>
+          <span class="text-center text-[9px] font-bold text-slate-400">Sa</span>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+
+      <!-- Selected day detail -->
+      <div id="dayDetail" class="hidden bg-white dark:bg-slate-900 rounded-2xl p-4 border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-3 fade-up">
+        <div class="flex justify-between items-center">
+          <span id="dayTitle" class="text-xs font-bold text-slate-700 dark:text-slate-300"></span>
+          <div class="flex gap-3">
+            <span class="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400" id="dayKJ"></span>
+            <span class="font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400" id="dayPr"></span>
+            <span class="font-mono text-[10px] font-bold text-blue-600 dark:text-blue-400" id="dayCa"></span>
+          </div>
+        </div>
+        <div id="dayMeals" class="space-y-2"></div>
+      </div>
+
+      <!-- Empty state -->
+      <div id="histEmpty" class="text-center py-10 space-y-2">
+        <p class="text-3xl">📋</p>
+        <p class="text-xs font-bold text-slate-400">No meals logged yet</p>
+        <p class="text-[10px] text-slate-300 dark:text-slate-600">Scan food on the Studio tab and tap "Save meal"</p>
+      </div>
+    </div><!-- /history -->
+
+    <!-- ═══════════════ SETTINGS TAB ═══════════════ -->
+    <div id="page-settings" class="page p-4 space-y-4">
+
+      <!-- Personal profile for RDI -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm space-y-3">
+        <div>
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Personal profile</span>
+          <p class="text-[10px] text-slate-400 mt-0.5">Sets your daily nutrient targets (RDI).</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Age</label>
+            <input type="number" id="pAge" value="30" min="1" max="110"
+              class="w-full text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Sex</label>
+            <select id="pSex" class="w-full text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="female">Female</option><option value="male">Male</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Weight (kg)</label>
+            <input type="number" id="pWeight" value="65" min="20" max="300"
+              class="w-full text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="text-[9px] font-bold text-slate-400 uppercase block mb-1">Activity</label>
+            <select id="pActivity" class="w-full text-xs px-2.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="sedentary">Sedentary</option><option value="light">Light</option>
+              <option value="moderate" selected>Moderate</option><option value="active">Active</option>
+              <option value="very_active">Very active</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="saveProfile()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all">Save profile</button>
+        <p id="profSaved" class="hidden text-center text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">✓ Targets updated</p>
+      </div>
+
+      <!-- Live AI connection info -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Live AI connection</span>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">For real food recognition, run this app through a Node.js proxy server with your Anthropic API key. In demo mode, the AI uses a built-in database of 10 food profiles.</p>
+        <div class="bg-slate-50 dark:bg-slate-950 rounded-xl p-3 font-mono text-[10px] text-slate-600 dark:text-slate-400 space-y-1">
+          <p>1. npm install express cors @anthropic-ai/sdk dotenv</p>
+          <p>2. node server.js</p>
+          <p>3. Open http://localhost:3001/NutriTime_Pro.html</p>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div class="flex justify-between items-center px-4 py-3.5">
+          <div><p class="text-xs font-bold text-slate-800 dark:text-white">Dark mode</p>
+            <span class="text-[10px] text-slate-400">Adjust display brightness</span></div>
+          <button onclick="toggleDarkMode()" class="w-11 h-6 bg-slate-200 dark:bg-indigo-600 rounded-full p-1 transition-all relative" id="darkToggleBtn">
+            <div class="w-4 h-4 bg-white rounded-full transition-transform translate-x-0 dark:translate-x-5 shadow-sm"></div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Danger -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div onclick="openClearModal()" class="flex justify-between items-center px-4 py-3.5 cursor-pointer hover:bg-red-50 dark:hover:bg-rose-950/20 transition-all">
+          <div><p class="text-xs font-bold text-rose-600 dark:text-rose-400">Clear all data</p>
+            <span class="text-[10px] text-slate-400">Remove all meals, cabinet and history</span></div>
+          <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+        </div>
+      </div>
+
+      <p class="text-center text-[9px] text-slate-300 dark:text-slate-700 font-mono">NutriTime ISO Pro · kJ · mg · g · mL</p>
+    </div><!-- /settings -->
+
+  </main>
+
+  <!-- ─── 4-TAB NAV ─── -->
+  <nav class="absolute bottom-0 left-0 right-0 h-[68px] bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-t border-slate-100 dark:border-slate-900 flex z-40">
+    <button onclick="switchTab('scan')"    id="tab-scan"    class="nt-tab active flex-1"><div class="nt-bg" id="bg-scan"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z"/></svg></div><span class="nt-lbl">Studio</span></button>
+    <button onclick="switchTab('cabinet')" id="tab-cabinet" class="nt-tab flex-1"><div class="nt-bg" id="bg-cabinet"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg></div><span class="nt-lbl">Cabinet</span></button>
+    <button onclick="switchTab('history')" id="tab-history" class="nt-tab flex-1"><div class="nt-bg" id="bg-history"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><span class="nt-lbl">History</span></button>
+    <button onclick="switchTab('settings')" id="tab-settings" class="nt-tab flex-1"><div class="nt-bg" id="bg-settings"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div><span class="nt-lbl">Settings</span></button>
+  </nav>
+
+  <!-- Edit cabinet bottom sheet -->
+  <div id="editSheet" class="sheet-wrap absolute inset-0 bg-slate-950/50 z-50 flex items-end">
+    <div class="sheet-slide w-full bg-white dark:bg-slate-900 rounded-t-3xl p-5 pb-8 space-y-3 border-t border-slate-200 dark:border-slate-800">
+      <div class="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-1"></div>
+      <div class="flex justify-between items-center">
+        <h3 class="text-sm font-extrabold text-slate-800 dark:text-white">Edit supplement</h3>
+        <button onclick="closeEditSheet()" class="text-slate-400 text-xl">✕</button>
+      </div>
+      <input type="hidden" id="editId">
+      <input type="text" id="editName" placeholder="Supplement name"
+        class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <div class="flex gap-2">
+        <input type="number" id="editDose" placeholder="Dose" min="0"
+          class="flex-1 text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <select id="editUnit" class="w-24 text-xs px-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono font-bold">
+          <option value="mg">mg</option><option value="mcg">mcg</option><option value="g">g</option>
+          <option value="mL">mL</option><option value="IU">IU</option>
+          <option value="tablet">tablet</option><option value="capsule">capsule</option>
+        </select>
+      </div>
+      <input type="text" id="editFreq" placeholder="Frequency (e.g. 1× daily)"
+        class="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <div class="flex gap-2 pt-1">
+        <button onclick="saveEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 rounded-xl">Save changes</button>
+        <button onclick="closeEditSheet()" class="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs py-3 rounded-xl">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clear all modal -->
+  <div id="clearModal" class="sheet-wrap absolute inset-0 bg-slate-950/50 z-50 flex items-end">
+    <div class="sheet-slide w-full bg-white dark:bg-slate-900 rounded-t-3xl p-5 pb-8 space-y-4 border-t border-slate-200 dark:border-slate-800">
+      <div class="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto"></div>
+      <div class="text-center space-y-1">
+        <p class="text-2xl">🗑️</p>
+        <h3 class="text-base font-extrabold text-slate-800 dark:text-white">Clear all data?</h3>
+        <p class="text-xs text-slate-400">Removes your cabinet, all meals, and history permanently.</p>
+      </div>
+      <button onclick="clearAll()" class="w-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-3 rounded-xl transition-all">Yes, clear everything</button>
+      <button onclick="closeClearModal()" class="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold py-3 rounded-xl">Cancel</button>
+    </div>
+  </div>
+
+
+  <!-- ═══ Camera Help Sheet ═══ -->
+  <div id="camHelpSheet" class="sheet-wrap absolute inset-0 bg-slate-950/60 z-50 flex items-end">
+    <div class="sheet-slide w-full bg-white dark:bg-slate-900 rounded-t-3xl border-t border-slate-200 dark:border-slate-800 max-h-[80vh] overflow-y-auto">
+      <div class="p-5 pb-2">
+        <div class="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4"></div>
+        <div class="flex justify-between items-start mb-3">
+          <div class="flex items-center gap-2"><span class="text-2xl">📷</span><h3 class="text-base font-extrabold text-slate-800 dark:text-white">Camera not available</h3></div>
+          <button onclick="closeCamHelp()" class="text-slate-400 text-xl p-1" style="min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center">✕</button>
+        </div>
+        <div id="helpReason" class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/40 rounded-2xl p-3 mb-4"></div>
+      </div>
+      <div id="helpSteps" class="px-5 pb-8 space-y-3"></div>
+    </div>
+  </div>
+
+</div><!-- /phone frame -->
+
+<style>
+  .nt-tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 0;border:none;background:none;cursor:pointer;color:#94a3b8;transition:color .15s}
+  .nt-tab.active{color:#4f46e5}.dark .nt-tab.active{color:#818cf8}
+  .nt-bg{width:44px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;transition:background .15s}
+  .nt-tab.active .nt-bg{background:#eef2ff}.dark .nt-tab.active .nt-bg{background:#1e1b4b}
+  .nt-lbl{font-size:9px;font-weight:700;letter-spacing:.03em}
+</style>
+
+<script>
+// ════════════════════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════════════════════
+let cabinet = [
+  {id:1, name:'Iron Tablet', dose:65, unit:'mg', freq:'1× daily, empty stomach', checked:true},
+  {id:2, name:'Vitamin D3',  dose:2000, unit:'IU', freq:'1× daily, with food',  checked:false},
+  {id:3, name:'Vitamin C',   dose:500,  unit:'mg', freq:'1× daily',             checked:false}
+];
+
+// Per-unit: kJ energy, ca calcium mg, pr protein g, fe iron mg, vc vitC mg, fi fiber g, na sodium mg
+let portions = [
+  {id:'milk',    name:'Whole Milk',  icon:'🥛', value:250, min:0, max:600, step:10, unit:'mL', kJ:2.6,  ca:1.2,  pr:0.033, fe:0.0003, vc:0.0004, fi:0,    na:0.044},
+  {id:'pancake', name:'Pancakes',    icon:'🥞', value:120, min:0, max:400, step:5,  unit:'g',  kJ:11.5, ca:0.8,  pr:0.06,  fe:0.008,  vc:0,      fi:0.01, na:0.38}
+];
+
+let nut = {kJ:0, ca:0, pr:0, fe:0, vc:0, fi:0, na:0};  // computed — never read from DOM
+let profile = {age:30, sex:'female', weight:65, activity:'moderate'};
+let camStream = null, analyzing = false, demoIdx = 0, lastFood = null;
+let calYear, calMonth, selDay = null;
+
+// ════════════════════════════════════════════════════════
+// FOOD DATABASE (10 full nutrient profiles)
+// ════════════════════════════════════════════════════════
+const DB = [
+  {name:'Pancakes with Whole Milk',emoji:'🥞',conf:98,parts:[
+    {id:'s_milk',name:'Whole Milk',icon:'🥛',value:250,min:0,max:600,step:10,unit:'mL',kJ:2.6,ca:1.2,pr:0.033,fe:0.0003,vc:0.0004,fi:0,na:0.044},
+    {id:'s_pk',name:'Pancakes',icon:'🥞',value:120,min:0,max:400,step:5,unit:'g',kJ:11.5,ca:0.8,pr:0.06,fe:0.008,vc:0,fi:0.01,na:0.38}],
+   nut:{cal:490,kJ:2051,pr:14,ca:302,fe:3,vc:1,fi:2,na:540}},
+  {name:'Grilled Chicken Salad',emoji:'🥗',conf:95,parts:[
+    {id:'s_chk',name:'Chicken Breast',icon:'🍗',value:150,min:0,max:400,step:5,unit:'g',kJ:6.3,ca:0.06,pr:0.31,fe:0.007,vc:0,fi:0,na:0.44},
+    {id:'s_grn',name:'Salad Greens',icon:'🥬',value:80,min:0,max:200,step:5,unit:'g',kJ:0.8,ca:0.18,pr:0.018,fe:0.008,vc:0.28,fi:0.02,na:0.06}],
+   nut:{cal:320,kJ:1339,pr:38,ca:180,fe:4,vc:28,fi:5,na:480}},
+  {name:'Avocado Toast',emoji:'🥑',conf:97,parts:[
+    {id:'s_av',name:'Avocado',icon:'🥑',value:80,min:0,max:200,step:5,unit:'g',kJ:6.7,ca:0.05,pr:0.02,fe:0.004,vc:0.06,fi:0.067,na:0.003},
+    {id:'s_br',name:'Sourdough Bread',icon:'🍞',value:60,min:0,max:150,step:5,unit:'g',kJ:10.5,ca:0.12,pr:0.09,fe:0.018,vc:0,fi:0.027,na:0.48}],
+   nut:{cal:410,kJ:1716,pr:16,ca:95,fe:5,vc:15,fi:9,na:620}},
+  {name:'Spaghetti Bolognese',emoji:'🍝',conf:94,parts:[
+    {id:'s_sp',name:'Spaghetti',icon:'🍝',value:180,min:0,max:350,step:10,unit:'g',kJ:14.6,ca:0.05,pr:0.05,fe:0.01,vc:0,fi:0.018,na:0.001},
+    {id:'s_bf',name:'Beef Mince',icon:'🥩',value:100,min:0,max:250,step:5,unit:'g',kJ:9.4,ca:0.08,pr:0.26,fe:0.022,vc:0,fi:0,na:0.58}],
+   nut:{cal:620,kJ:2594,pr:32,ca:140,fe:6,vc:12,fi:6,na:820}},
+  {name:'Greek Yogurt Bowl',emoji:'🫙',conf:96,parts:[
+    {id:'s_yg',name:'Greek Yogurt',icon:'🫙',value:170,min:0,max:350,step:10,unit:'g',kJ:2.6,ca:1.1,pr:0.1,fe:0.001,vc:0,fi:0,na:0.037},
+    {id:'s_be',name:'Mixed Berries',icon:'🍓',value:60,min:0,max:150,step:5,unit:'g',kJ:1.4,ca:0.05,pr:0.007,fe:0.004,vc:0.48,fi:0.02,na:0.001}],
+   nut:{cal:380,kJ:1590,pr:22,ca:340,fe:2,vc:9,fi:6,na:90}},
+  {name:'Salmon & Vegetables',emoji:'🐟',conf:93,parts:[
+    {id:'s_sal',name:'Atlantic Salmon',icon:'🐟',value:150,min:0,max:300,step:5,unit:'g',kJ:8.4,ca:0.12,pr:0.25,fe:0.003,vc:0,fi:0,na:0.38},
+    {id:'s_veg',name:'Roasted Veg',icon:'🥦',value:120,min:0,max:250,step:5,unit:'g',kJ:1.2,ca:0.22,pr:0.018,fe:0.007,vc:0.64,fi:0.038,na:0.04}],
+   nut:{cal:520,kJ:2176,pr:42,ca:110,fe:3,vc:96,fi:8,na:390}},
+  {name:'Acai Smoothie Bowl',emoji:'🫐',conf:91,parts:[
+    {id:'s_ac',name:'Acai Puree',icon:'🫐',value:150,min:0,max:300,step:10,unit:'mL',kJ:2.8,ca:0.2,pr:0.013,fe:0.006,vc:0,fi:0.02,na:0.003},
+    {id:'s_gr',name:'Granola',icon:'🌾',value:40,min:0,max:100,step:5,unit:'g',kJ:16.5,ca:0.08,pr:0.04,fe:0.021,vc:0,fi:0.038,na:0.05}],
+   nut:{cal:445,kJ:1862,pr:8,ca:130,fe:4,vc:62,fi:12,na:65}},
+  {name:'Beef Tacos',emoji:'🌮',conf:96,parts:[
+    {id:'s_to',name:'Corn Tortillas',icon:'🌽',value:60,min:0,max:150,step:5,unit:'g',kJ:12.2,ca:0.14,pr:0.027,fe:0.009,vc:0,fi:0.028,na:0.19},
+    {id:'s_tb',name:'Seasoned Beef',icon:'🥩',value:100,min:0,max:250,step:5,unit:'g',kJ:9.8,ca:0.09,pr:0.24,fe:0.024,vc:0,fi:0,na:0.52}],
+   nut:{cal:560,kJ:2343,pr:28,ca:220,fe:5,vc:14,fi:5,na:940}},
+  {name:'Oatmeal with Berries',emoji:'🍓',conf:99,parts:[
+    {id:'s_oa',name:'Rolled Oats',icon:'🌾',value:80,min:0,max:200,step:5,unit:'g',kJ:15.5,ca:0.1,pr:0.135,fe:0.043,vc:0,fi:0.1,na:0.002},
+    {id:'s_om',name:'Whole Milk',icon:'🥛',value:200,min:0,max:400,step:10,unit:'mL',kJ:2.6,ca:1.2,pr:0.033,fe:0.0003,vc:0.0004,fi:0,na:0.044}],
+   nut:{cal:360,kJ:1506,pr:12,ca:185,fe:4,vc:22,fi:8,na:105}},
+  {name:'Margherita Pizza',emoji:'🍕',conf:97,parts:[
+    {id:'s_pb',name:'Pizza Base',icon:'🍕',value:200,min:0,max:400,step:10,unit:'g',kJ:11.8,ca:0.38,pr:0.09,fe:0.012,vc:0,fi:0.022,na:0.45},
+    {id:'s_mz',name:'Mozzarella',icon:'🧀',value:40,min:0,max:100,step:5,unit:'g',kJ:12.0,ca:5.2,pr:0.22,fe:0.002,vc:0,fi:0,na:0.37}],
+   nut:{cal:680,kJ:2845,pr:26,ca:380,fe:4,vc:8,fi:4,na:1100}}
+];
+
+// ════════════════════════════════════════════════════════
+// RDI (personalised)
+// ════════════════════════════════════════════════════════
+function getRDI() {
+  const acts={sedentary:1.2,light:1.375,moderate:1.55,active:1.725,very_active:1.9};
+  const mult=acts[profile.activity]||1.55;
+  const bmr=profile.sex==='male'?10*profile.weight+6.25*172-5*profile.age+5:10*profile.weight+6.25*160-5*profile.age-161;
+  const kcal=Math.round(bmr*mult);
+  return {kJ:Math.round(kcal*4.184),ca:1000,pr:Math.round(profile.weight*.8),fe:profile.sex==='female'&&profile.age<51?18:8,vc:profile.sex==='male'?90:75,fi:28,na:2300};
+}
+
+// ════════════════════════════════════════════════════════
+// LOCALSTORAGE
+// ════════════════════════════════════════════════════════
+function save() {
+  try {
+    localStorage.setItem('nt_cab',  JSON.stringify(cabinet));
+    localStorage.setItem('nt_por',  JSON.stringify(portions));
+    localStorage.setItem('nt_prof', JSON.stringify(profile));
+  } catch(e) {}
+}
+function load() {
+  try {
+    const c=localStorage.getItem('nt_cab');  if(c) cabinet=JSON.parse(c);
+    const p=localStorage.getItem('nt_por');  if(p) portions=JSON.parse(p);
+    const r=localStorage.getItem('nt_prof'); if(r) profile=JSON.parse(r);
+  } catch(e) {}
+}
+function dayKey(d){ return 'nt_day_'+d.toISOString().slice(0,10); }
+function getDayMeals(d){ try{ return JSON.parse(localStorage.getItem(dayKey(d))||'[]'); }catch(e){ return []; } }
+function saveDayMeal(meal){ try{ const k=dayKey(new Date()); const m=getDayMeals(new Date()); m.push(meal); localStorage.setItem(k,JSON.stringify(m)); }catch(e){} }
+function hasMealsOnDay(d){ return getDayMeals(d).length>0; }
+
+// ════════════════════════════════════════════════════════
+// CLOCK
+// ════════════════════════════════════════════════════════
+function tick(){ document.getElementById('liveTime').textContent=new Date().toTimeString().slice(0,8); }
+setInterval(tick,1000); tick();
+
+// ════════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ════════════════════════════════════════════════════════
+const TABS=['scan','cabinet','history','settings'];
+const TITLES={scan:'Scan Studio',cabinet:'My Cabinet',history:'Meal History',settings:'Settings'};
+
+function switchTab(t) {
+  TABS.forEach(id=>{
+    document.getElementById('page-'+id).classList.toggle('active',id===t);
+    const btn=document.getElementById('tab-'+id), bg=document.getElementById('bg-'+id);
+    btn.classList.toggle('active',id===t);
+  });
+  document.getElementById('appHeaderTitle').textContent=TITLES[t];
+  document.getElementById('mainScroll').scrollTop=0;
+  if(t==='history') renderCalendar();
+}
+
+// ════════════════════════════════════════════════════════
+// CAMERA
+// ════════════════════════════════════════════════════════
+// ── Camera diagnostic (checks WHY camera won't work before trying) ─
+function diagnoseCamera(){
+  const proto=location.protocol, host=location.hostname;
+  const isLocal=host==='localhost'||host==='127.0.0.1'||host.endsWith('.local');
+  if(proto==='file:') return{
+    reason:'🗂 Opened as a local file. Browsers block camera on file:// for security.',
+    steps:[
+      {icon:'💻',text:'Run: <strong>python3 -m http.server 8080</strong> in your project folder'},
+      {icon:'🌐',text:'Open Safari and go to: <strong>http://localhost:8080</strong>'},
+      {icon:'📱',text:'On iPhone (same Wi-Fi): <strong>http://YOUR-IP:8080/NutriTime_Pro.html</strong>'}
+    ]
+  };
+  if(/CriOS|FxiOS/i.test(navigator.userAgent)) return{
+    reason:'🍎 Chrome/Firefox on iPhone cannot access camera. Only Safari can on iOS.',
+    steps:[
+      {icon:'📋',text:'Copy the URL from your browser'},
+      {icon:'🧭',text:'Open <strong>Safari</strong> on your iPhone'},
+      {icon:'📋',text:'Paste the URL in Safari and open it'}
+    ]
+  };
+  if(!navigator.mediaDevices||typeof navigator.mediaDevices.getUserMedia!=='function') return{
+    reason:'🔒 Camera API blocked. On iPhone Safari requires HTTPS or localhost.',
+    steps:[
+      {icon:'1️⃣',text:'<strong>Easiest (2 min):</strong> drag your file to <strong>netlify.com/drop</strong> → get free HTTPS link'},
+      {icon:'2️⃣',text:'<strong>For Replit:</strong> upload index.html + server.js → click Run → use the HTTPS URL'},
+      {icon:'🎭',text:'Demo Mode works now — tap shutter to see nutrition data'}
+    ]
+  };
+  return null;
+}
+
+function setCamBtn(state){
+  const btn=document.getElementById('camBtn'); if(!btn) return;
+  const s={idle:{t:'📷 Enable Camera',d:false,bg:'bg-indigo-600/80'},
+            loading:{t:'⏳ Starting…',d:true,bg:'bg-slate-600/80'},
+            live:{t:'⏹ Stop Camera',d:false,bg:'bg-rose-600/80'}};
+  const c=s[state]||s.idle;
+  btn.textContent=c.t; btn.disabled=c.d;
+  btn.className=btn.className.replace(/bg-\S+\/80/g,c.bg);
+}
+
+async function toggleCam() {
+  if(camStream){ stopCam(); return; }
+  const block=diagnoseCamera();
+  if(block){ showCamHelp(block); return; }
+  setCamBtn('loading');
+  try{
+    let stream;
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:960}},audio:false}); }
+    catch(_){ stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false}); }
+    camStream=stream;
+    const v=document.getElementById('camVideo');
+    v.srcObject=stream; v.classList.remove('hidden');
+    document.getElementById('camPlaceholder').classList.add('hidden');
+    document.getElementById('captureStill').classList.add('hidden');
+    document.getElementById('demoBanner').classList.add('hidden');
+    document.getElementById('camLabel').textContent='LIVE · 30FPS';
+    document.getElementById('camDot').className='w-1.5 h-1.5 rounded-full bg-red-500 blink';
+    setCamBtn('live');
+    toast('✓ Camera live — tap shutter to scan','ok');
+  }catch(e){
+    setCamBtn('idle');
+    const helps={
+      NotAllowedError:{reason:'🚫 Camera permission denied.',steps:[{icon:'⚙️',text:'<strong>iPhone:</strong> Settings → Safari → Camera → Allow'},{icon:'🔄',text:'Come back and tap Enable Camera again'}]},
+      NotFoundError:{reason:'📷 No camera found on this device.',steps:[{icon:'🎭',text:'Demo Mode still works — tap the shutter for a practice scan'}]},
+      NotReadableError:{reason:'📵 Camera in use by another app.',steps:[{icon:'❌',text:'Close other apps using the camera'},{icon:'🔄',text:'Then tap Enable Camera again'}]}
+    };
+    showCamHelp(helps[e.name]||{reason:'⚠️ Camera error: '+e.name+'. '+( e.message||''),steps:[{icon:'🧭',text:'Use Safari on iPhone — not Chrome'},{icon:'🔒',text:'Open via HTTPS or localhost'},{icon:'🎭',text:'Demo Mode works — tap the shutter'}]});
+  }
+}
+
+function stopCam() {
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  const v=document.getElementById('camVideo'); v.srcObject=null; v.classList.add('hidden');
+  document.getElementById('camPlaceholder').classList.remove('hidden');
+  document.getElementById('captureStill').classList.add('hidden');
+  document.getElementById('camLabel').textContent='DEMO MODE';
+  document.getElementById('camDot').className='w-1.5 h-1.5 rounded-full bg-slate-500';
+  setCamBtn('idle');
+}
+
+function showCamHelp(d){
+  document.getElementById('helpReason').innerHTML=d.reason;
+  document.getElementById('helpSteps').innerHTML=d.steps.map(s=>
+    '<div class="flex gap-3 items-start bg-slate-50 dark:bg-slate-950 rounded-2xl p-3 border border-slate-100 dark:border-slate-800">'+
+    '<span class="text-xl flex-shrink-0">'+s.icon+'</span>'+
+    '<p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">'+s.text+'</p></div>'
+  ).join('')+
+  '<button onclick="closeCamHelp()" class="w-full mt-2 bg-indigo-600 text-white font-bold text-sm py-3 rounded-2xl">Got it — use Demo Mode</button>';
+  document.getElementById('camHelpSheet').classList.add('open');
+}
+function closeCamHelp(){ document.getElementById('camHelpSheet').classList.remove('open'); }
+
+// ════════════════════════════════════════════════════════
+// SHUTTER
+// ════════════════════════════════════════════════════════
+function triggerShutter() {
+  if(analyzing) return;
+  const flash=document.getElementById('shutterMask');
+  flash.style.opacity='1'; setTimeout(()=>flash.style.opacity='0',130);
+  let preview=null;
+  if(camStream) {
+    const v=document.getElementById('camVideo'), c=document.getElementById('camCanvas');
+    c.width=v.videoWidth||640; c.height=v.videoHeight||480;
+    c.getContext('2d').drawImage(v,0,0);
+    preview=c.toDataURL('image/jpeg',.82);
+    const s=document.getElementById('captureStill'); s.src=preview; s.classList.remove('hidden');
+    liveAnalyze(preview.split(',')[1], preview); // try real AI first
+  } else {
+    runDemo(null);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// LIVE AI — calls /api/analyze (Gemini via Vercel/Replit)
+// ════════════════════════════════════════════════════════
+async function liveAnalyze(base64, previewSrc) {
+  showAnalyzing();
+  try{
+    const res=await fetch('/api/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({base64})
+    });
+    if(res.ok){
+      const foods=await res.json();
+      if(Array.isArray(foods)&&foods.length>0){
+        hideAnalyzing();
+        applyAIFoods(foods,previewSrc);
+        return;
+      }
+    }
+    const err=await res.json().catch(()=>({error:'HTTP '+res.status}));
+    hideAnalyzing();
+    showAIError(err.error||'AI error '+res.status);
+    runDemo(previewSrc);
+  }catch(e){
+    hideAnalyzing();
+    showAIError('Cannot reach server ('+e.message+'). Is it running?');
+    runDemo(previewSrc);
+  }
+}
+
+function showAIError(msg){
+  const card=document.getElementById('aiCard');
+  card.classList.remove('hidden');
+  card.innerHTML=`<div class="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-2xl p-4 flex gap-3 items-start">
+    <span class="text-2xl flex-shrink-0">⚠️</span>
+    <div>
+      <p class="text-xs font-extrabold text-rose-700 dark:text-rose-400 uppercase tracking-wide mb-1">AI scan failed — showing demo</p>
+      <p class="text-xs text-rose-600 dark:text-rose-400 leading-relaxed">${msg}</p>
+      <p class="text-[10px] text-slate-400 mt-2">Check: GEMINI_API_KEY set in Vercel/Replit environment variables</p>
+    </div>
+  </div>`;
+}
+
+function applyAIFoods(foods, previewSrc) {
+  portions=foods.map(f=>({
+    id:'ai_'+f.name.replace(/\W/g,'_')+'_'+Date.now(),
+    name:f.name, icon:'🔍',
+    value:f.portionG||100, min:0, max:Math.round((f.portionG||100)*3), step:5, unit:'g',
+    kJ:(f.energyKJ||0)/(f.portionG||100),
+    ca:(f.calciumMg||0)/(f.portionG||100),
+    pr:(f.proteinG||0)/(f.portionG||100),
+    fe:(f.ironMg||0)/(f.portionG||100),
+    vc:(f.vitaminCMg||0)/(f.portionG||100),
+    fi:(f.fiberG||0)/(f.portionG||100),
+    na:(f.sodiumMg||0)/(f.portionG||100)
+  }));
+  // Synthetic food card from real data
+  const total={cal:foods.reduce((s,f)=>s+(f.calories||0),0), kJ:foods.reduce((s,f)=>s+(f.energyKJ||0),0),
+    pr:foods.reduce((s,f)=>s+(f.proteinG||0),0), ca:foods.reduce((s,f)=>s+(f.calciumMg||0),0),
+    fe:foods.reduce((s,f)=>s+(f.ironMg||0),0), vc:foods.reduce((s,f)=>s+(f.vitaminCMg||0),0),
+    fi:foods.reduce((s,f)=>s+(f.fiberG||0),0), na:foods.reduce((s,f)=>s+(f.sodiumMg||0),0)};
+  const foodObj={name:foods.map(f=>f.name).join(' + '), emoji:'🔍', conf:95, nut:total};
+  document.getElementById('demoBanner').classList.add('hidden');
+  showAICard(foodObj, previewSrc, false);
+  lastFood=foodObj; save(); renderSliders();
+}
+
+// ════════════════════════════════════════════════════════
+// DEMO AI ENGINE
+// ════════════════════════════════════════════════════════
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function runDemo(preview) {
+  showAnalyzing();
+  const steps=[[380,'Detecting food items…'],[760,'Identifying ingredients…'],[1120,'Computing macronutrients…'],[1500,'Calculating ISO values…'],[1800,'Finalising results…']];
+  let prev=0;
+  for(const [ms,lbl] of steps){ await wait(ms-prev); document.getElementById('analyzeStep').textContent=lbl; prev=ms; }
+  await wait(200);
+
+  const food=DB[demoIdx++%DB.length];
+  const j=(v,p=.07)=>Math.max(0,Math.round(v*(1+(Math.random()-.5)*p*2)));
+  const n=food.nut;
+  const jn={cal:j(n.cal),pr:j(n.pr,.1),ca:j(n.ca,.06),fe:j(n.fe,.1),vc:j(n.vc,.15),fi:j(n.fi,.12),na:j(n.na,.08)};
+  jn.kJ=Math.round(jn.cal*4.184);
+
+  hideAnalyzing();
+  portions=food.parts.map(p=>({...p,id:'s_'+p.id+'_'+Date.now()}));
+  lastFood={...food,nut:jn};
+  // Show demo banner
+  document.getElementById('demoBanner').classList.remove('hidden');
+  showAICard(lastFood,preview,true);
+  document.getElementById('aiBBox').innerHTML=`<div class="absolute border-2 border-emerald-400 rounded-2xl" style="top:18%;left:22%;width:54%;height:56%"><span class="absolute -top-5 left-0 font-mono text-[9px] text-emerald-400 bg-slate-950/90 px-1.5 py-0.5 rounded whitespace-nowrap">${food.emoji} ${food.name}</span></div>`;
+  save(); renderSliders();
+}
+
+function showAnalyzing(){
+  analyzing=true;
+  const o=document.getElementById('analyzingOverlay');
+  o.classList.remove('hidden'); o.classList.add('flex');
+}
+function hideAnalyzing(){
+  analyzing=false;
+  const o=document.getElementById('analyzingOverlay');
+  o.classList.add('hidden'); o.classList.remove('flex');
+}
+
+function showAICard(food, preview, isDemo=false) {
+  const n=food.nut;
+  const thumb=preview
+    ?`<img src="${preview}" class="w-14 h-14 rounded-xl object-cover border-2 border-emerald-400/40" alt="">`
+    :`<div class="w-14 h-14 rounded-xl bg-slate-800 flex items-center justify-center text-2xl">${food.emoji}</div>`;
+
+  document.getElementById('aiCard').innerHTML=`
+    <div class="bg-slate-900 p-4 flex justify-between items-start">
+      <div>
+        <p class="font-mono text-[9px] font-bold tracking-widest mb-1" style="color:${isDemo?'#fbbf24':'#34d399'}">${isDemo?'⚠ DEMO SCAN — not real food':'● AI LIVE SCAN'}</p>
+        <p class="text-white font-extrabold text-sm">${food.emoji} ${food.name}</p>
+        <p class="font-mono text-[10px] text-slate-500 mt-0.5">Confidence: ${food.conf}%</p>
+      </div>${thumb}
+    </div>
+    <div class="grid grid-cols-4 border-t border-slate-100 dark:border-slate-800 divide-x divide-slate-100 dark:divide-slate-800">
+      ${[['Energy',Math.round(n.kJ).toLocaleString(),'kJ'],['Calories',Math.round(n.cal),'kcal'],['Protein',Math.round(n.pr),'g'],['Calcium',Math.round(n.ca),'mg']]
+        .map(([l,v,u])=>`<div class="p-3 text-center"><p class="font-mono text-sm font-black text-slate-800 dark:text-white">${v}</p><p class="text-[9px] text-slate-400">${u}</p><p class="text-[9px] text-slate-400 mt-0.5">${l}</p></div>`).join('')}
+    </div>
+    <div class="grid grid-cols-4 border-t border-slate-100 dark:border-slate-800 divide-x divide-slate-100 dark:divide-slate-800">
+      ${[['Iron',Math.round(n.fe*10)/10,'mg'],['Vitamin C',Math.round(n.vc),'mg'],['Fiber',Math.round(n.fi),'g'],['Sodium',Math.round(n.na),'mg']]
+        .map(([l,v,u])=>`<div class="p-3 text-center"><p class="font-mono text-sm font-black text-slate-800 dark:text-white">${v}</p><p class="text-[9px] text-slate-400">${u}</p><p class="text-[9px] text-slate-400 mt-0.5">${l}</p></div>`).join('')}
+    </div>`;
+  document.getElementById('aiCard').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('aiCard').scrollIntoView({behavior:'smooth',block:'nearest'}),120);
+}
+
+// ════════════════════════════════════════════════════════
+// PORTION SLIDERS
+// ════════════════════════════════════════════════════════
+function renderSliders() {
+  const box=document.getElementById('sliders');
+  box.innerHTML='';
+  if(!portions.length){
+    box.innerHTML='<p class="text-xs text-center text-slate-400 py-4">Scan a meal or tap "+ Add food"</p>';
+    calcNut(); return;
+  }
+  portions.forEach(item=>{
+    const pct=((item.value-item.min)/(item.max-item.min)*100).toFixed(1);
+    const canDel=String(item.id).startsWith('s_')||String(item.id).startsWith('custom_')||String(item.id).startsWith('ai_');
+    const row=document.createElement('div');
+    row.className='space-y-1.5 relative';
+    row.innerHTML=`
+      <div class="flex justify-between items-baseline ${canDel?'pr-6':''}">
+        <span class="text-xs font-bold text-slate-600 dark:text-slate-300">${item.icon} ${item.name}</span>
+        <span class="font-mono text-sm font-black text-indigo-600 dark:text-indigo-400" id="sv_${item.id}">${item.value} <span class="text-[10px] text-slate-400">${item.unit}</span></span>
+        ${canDel?`<button onclick="delSlider('${item.id}')" class="absolute right-0 top-0 text-slate-300 hover:text-rose-500 transition-colors text-sm leading-none">✕</button>`:''}
+      </div>
+      <input type="range" min="${item.min}" max="${item.max}" step="${item.step}" value="${item.value}"
+        oninput="moveSlider('${item.id}',this.value)"
+        style="background:linear-gradient(to right,#4f46e5 ${pct}%,#e2e8f0 ${pct}%)">`;
+    box.appendChild(row);
+  });
+  calcNut();
+}
+
+function moveSlider(id,val) {
+  const item=portions.find(i=>String(i.id)===String(id)); if(!item) return;
+  item.value=parseInt(val)||0;
+  const lbl=document.getElementById('sv_'+id);
+  if(lbl) lbl.innerHTML=`${item.value} <span class="text-[10px] text-slate-400">${item.unit}</span>`;
+  const pct=((item.value-item.min)/(item.max-item.min)*100).toFixed(1);
+  const el=document.querySelector(`input[oninput*="${id}"]`);
+  if(el) el.style.background=`linear-gradient(to right,#4f46e5 ${pct}%,#e2e8f0 ${pct}%)`;
+  calcNut(); save();
+}
+
+function delSlider(id){
+  portions=portions.filter(i=>String(i.id)!==String(id));
+  save(); renderSliders();
+}
+
+// ════════════════════════════════════════════════════════
+// ADD CUSTOM INGREDIENT
+// ════════════════════════════════════════════════════════
+function toggleIngForm(){ document.getElementById('ingForm').classList.toggle('hidden'); }
+
+function addCustomIng() {
+  const name=document.getElementById('ingName').value.trim();
+  if(!name){ ring('ingName'); return; }
+  portions.push({
+    id:'custom_'+Date.now(), name, icon:'🍳',
+    value:50, min:0, max:500, step:5,
+    unit:document.getElementById('ingUnit').value,
+    kJ:parseFloat(document.getElementById('ingKJ').value)||0,
+    ca:parseFloat(document.getElementById('ingCa').value)||0,
+    pr:parseFloat(document.getElementById('ingPr').value)||0,
+    fe:parseFloat(document.getElementById('ingFe').value)||0,
+    vc:parseFloat(document.getElementById('ingVc').value)||0,
+    fi:0, na:0
+  });
+  ['ingName','ingKJ','ingCa','ingPr','ingFe','ingVc'].forEach(id=>document.getElementById(id).value='');
+  toggleIngForm(); save(); renderSliders();
+}
+
+// ════════════════════════════════════════════════════════
+// CALCULATE NUTRIENTS — reads JS variables, never DOM
+// ════════════════════════════════════════════════════════
+function calcNut() {
+  nut={kJ:0,ca:0,pr:0,fe:0,vc:0,fi:0,na:0};
+  portions.forEach(item=>{
+    // Support both naming conventions (kJ/ca/pr or energyPerUnit/calciumPerUnit)
+    nut.kJ+=item.value*(item.kJ||item.energyPerUnit||0);
+    nut.ca+=item.value*(item.ca||item.calciumPerUnit||0);
+    nut.pr+=item.value*(item.pr||0);
+    nut.fe+=item.value*(item.fe||0);
+    nut.vc+=item.value*(item.vc||0);
+    nut.fi+=item.value*(item.fi||0);
+    nut.na+=item.value*(item.na||0);
+  });
+  nut.kJ=Math.round(nut.kJ); nut.ca=Math.round(nut.ca);
+  nut.pr=Math.round(nut.pr*10)/10; nut.fe=Math.round(nut.fe*10)/10;
+  nut.vc=Math.round(nut.vc*10)/10; nut.fi=Math.round(nut.fi*10)/10; nut.na=Math.round(nut.na);
+  renderNutGrid(); renderSafety(); renderDailyBar();
+}
+
+// ════════════════════════════════════════════════════════
+// NUTRIENT GRID (8 nutrients + RDI progress bars)
+// ════════════════════════════════════════════════════════
+function renderNutGrid() {
+  const rdi=getRDI();
+  const rows=[
+    {l:'Energy',  v:nut.kJ.toLocaleString(), u:'kJ',  rdi:rdi.kJ,  col:'#10b981'},
+    {l:'Protein', v:nut.pr,                  u:'g',   rdi:rdi.pr,  col:'#6366f1'},
+    {l:'Calcium', v:nut.ca,                  u:'mg',  rdi:rdi.ca,  col:'#3b82f6'},
+    {l:'Iron',    v:nut.fe,                  u:'mg',  rdi:rdi.fe,  col:'#ef4444'},
+    {l:'Vit C',   v:nut.vc,                  u:'mg',  rdi:rdi.vc,  col:'#f59e0b'},
+    {l:'Fiber',   v:nut.fi,                  u:'g',   rdi:rdi.fi,  col:'#8b5cf6'},
+    {l:'Sodium',  v:nut.na,                  u:'mg',  rdi:rdi.na,  col:'#64748b'},
+    {l:'Calories',v:Math.round(nut.kJ/4.184),u:'kcal',rdi:rdi.kJ/4.184,col:'#10b981'}
+  ];
+  document.getElementById('nutriGrid').innerHTML=rows.map(r=>{
+    const pct=r.rdi?Math.min(100,Math.round(parseFloat(r.v)/r.rdi*100)):0;
+    const tc=pct>100?'text-rose-600 dark:text-rose-400':'text-slate-800 dark:text-white';
+    const pc=pct>100?'text-rose-500':pct>=90?'text-emerald-500':'text-slate-400';
+    return `<div class="bg-slate-50 dark:bg-slate-950/50 rounded-2xl p-3 border border-slate-100 dark:border-slate-800/50">
+      <div class="flex justify-between items-baseline mb-1.5">
+        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">${r.l}</span>
+        <span class="font-mono text-[9px] font-bold ${pc}">${pct}%</span>
+      </div>
+      <p class="font-mono text-lg font-black ${tc} leading-none">${r.v} <span class="text-[10px] font-bold text-slate-400">${r.u}</span></p>
+      <div class="prog mt-2"><div class="prog-fill" style="width:${pct}%;background:${r.col}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderDailyBar() {
+  const rdi=getRDI();
+  const pct=Math.min(100,Math.round(nut.kJ/rdi.kJ*100));
+  document.getElementById('dailyKJ').textContent=nut.kJ.toLocaleString();
+  document.getElementById('dailyTarget').textContent=rdi.kJ.toLocaleString();
+  document.getElementById('dailyBar').style.width=pct+'%';
+  document.getElementById('dailyPct').textContent=pct+'% of daily target';
+}
+
+// ════════════════════════════════════════════════════════
+// BIOCHEMICAL SAFETY (3 rules, reads JS nut variable)
+// ════════════════════════════════════════════════════════
+function renderSafety() {
+  const hasIron=cabinet.some(i=>i.checked&&i.name.toLowerCase().includes('iron'));
+  const hasVitD=cabinet.some(i=>i.checked&&i.name.toLowerCase().includes('vitamin d'));
+  const fatEst=Math.round(nut.kJ/37);
+  const styles={
+    danger:'border-rose-200 dark:border-rose-900/40 bg-rose-50/60 dark:bg-rose-950/20',
+    boost: 'border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-950/20',
+    info:  'border-sky-200 dark:border-sky-900/40 bg-sky-50/60 dark:bg-sky-950/20',
+    warn:  'border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20',
+    clear: 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+  };
+  let type,icon,title,desc;
+  if(hasIron&&nut.ca>200){
+    type='danger';icon='🚫';title='Iron absorption blocked';
+    desc=`Your meal has <strong>${nut.ca} mg</strong> of calcium. This will significantly reduce iron absorption — delay your Iron Tablet by <strong>2 hours</strong>.`;
+  } else if(hasIron&&nut.vc>20){
+    type='boost';icon='✅';title='Iron absorption enhanced';
+    desc=`<strong>${nut.vc} mg</strong> of vitamin C will significantly boost iron uptake. Take your Iron Tablet <strong>with this meal</strong>.`;
+  } else if(hasVitD&&fatEst>5){
+    type='info';icon='💡';title='Good time for Vitamin D3';
+    desc=`This meal has ~${fatEst} g of fat. Fat-soluble vitamins like Vitamin D3 absorb best with a fatty meal — take it now.`;
+  } else if(nut.ca>0||nut.vc>0){
+    type='warn';icon='⚠️';title='No significant interactions';
+    desc='Nutrients tracked. No major supplement conflicts detected.';
+  } else {
+    type='clear';icon='⏳';title='Scan a meal first';
+    desc='Adjust portions or scan food to see supplement interactions.';
+  }
+  const panel=document.getElementById('safetyPanel');
+  panel.className=`rounded-2xl p-4 border flex gap-3 items-start shadow-sm transition-all duration-300 ${styles[type]}`;
+  document.getElementById('safetyIcon').textContent=icon;
+  document.getElementById('safetyTitle').textContent=title;
+  document.getElementById('safetyDesc').innerHTML=desc;
+}
+
+// ════════════════════════════════════════════════════════
+// CABINET FILTERS (scan page)
+// ════════════════════════════════════════════════════════
+function renderFilters() {
+  const el=document.getElementById('mainPageFilters');
+  if(!cabinet.length){ el.innerHTML='<p class="col-span-2 text-center text-xs text-slate-400 py-3">No supplements — add in Cabinet tab</p>'; return; }
+  el.innerHTML=cabinet.map(item=>{
+    const isIron=item.name.toLowerCase().includes('iron');
+    const isVitD=item.name.toLowerCase().includes('vitamin d');
+    const badge=isIron?'⚠️ Empty stomach':isVitD?'💡 With fat meal':'✓ Standard';
+    const bc=isIron?'text-amber-600 dark:text-amber-400':isVitD?'text-sky-600 dark:text-sky-400':'text-slate-400';
+    return `<label class="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">
+      <input type="checkbox" ${item.checked?'checked':''} onchange="toggleCheck(${item.id})" class="rounded text-indigo-600 border-slate-300 w-4 h-4">
+      <div class="min-w-0">
+        <p class="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">${item.name}</p>
+        <span class="text-[9px] font-mono ${bc}">${item.dose||''} ${item.unit||''} · ${badge}</span>
+      </div>
+    </label>`;
+  }).join('');
+}
+
+function toggleCheck(id){ const item=cabinet.find(i=>i.id===id); if(item){ item.checked=!item.checked; save(); renderSafety(); } }
+
+// ════════════════════════════════════════════════════════
+// CABINET INVENTORY
+// ════════════════════════════════════════════════════════
+function renderCabinet() {
+  const el=document.getElementById('cabinetList');
+  if(!cabinet.length){ el.innerHTML=`<div class="text-center py-12 space-y-2"><p class="text-4xl">🫙</p><p class="text-xs font-bold text-slate-400">Your cabinet is empty</p></div>`; return; }
+  el.innerHTML=cabinet.map(item=>`
+    <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-sm flex justify-between items-center fade-up">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-lg shrink-0">💊</div>
+        <div class="min-w-0">
+          <h4 class="text-xs font-black text-slate-800 dark:text-white truncate">${item.name}</h4>
+          <p class="font-mono text-[10px] text-slate-400">${item.dose||''} ${item.unit||''}</p>
+          ${item.freq?`<p class="text-[10px] text-slate-400 truncate">${item.freq}</p>`:''}
+        </div>
+      </div>
+      <div class="flex gap-1 shrink-0 ml-2">
+        <button onclick="openEdit(${item.id})" class="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-xl transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+        </button>
+        <button onclick="delCab(${item.id})" class="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m3.4 6.06h8.056"/></svg>
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+function addCabinetItem() {
+  const name=document.getElementById('addName').value.trim();
+  const dose=parseFloat(document.getElementById('addDose').value)||0;
+  const unit=document.getElementById('addUnit').value;
+  const freq=document.getElementById('addFreq').value.trim();
+  if(!name){ ring('addName'); return; }
+  cabinet.push({id:Date.now(),name,dose,unit,freq,checked:true});
+  ['addName','addDose','addFreq'].forEach(id=>document.getElementById(id).value='');
+  save(); syncAll(); toast('Supplement saved to cabinet','ok');
+}
+
+function openEdit(id) {
+  const item=cabinet.find(i=>i.id===id); if(!item) return;
+  document.getElementById('editId').value=id;
+  document.getElementById('editName').value=item.name;
+  document.getElementById('editDose').value=item.dose||'';
+  document.getElementById('editUnit').value=item.unit||'mg';
+  document.getElementById('editFreq').value=item.freq||'';
+  document.getElementById('editSheet').classList.add('open');
+}
+function saveEdit() {
+  const id=parseInt(document.getElementById('editId').value);
+  const item=cabinet.find(i=>i.id===id); if(!item) return;
+  item.name=document.getElementById('editName').value.trim()||item.name;
+  item.dose=parseFloat(document.getElementById('editDose').value)||item.dose;
+  item.unit=document.getElementById('editUnit').value;
+  item.freq=document.getElementById('editFreq').value.trim();
+  closeEditSheet(); save(); syncAll(); toast('Supplement updated','ok');
+}
+function closeEditSheet(){ document.getElementById('editSheet').classList.remove('open'); }
+function delCab(id){ cabinet=cabinet.filter(i=>i.id!==id); save(); syncAll(); }
+
+// ════════════════════════════════════════════════════════
+// SAVE MEAL & CALENDAR
+// ════════════════════════════════════════════════════════
+function saveMeal() {
+  if(!nut.kJ){ toast('Adjust portions first before saving','warn'); return; }
+  const meal={
+    id:Date.now(),
+    ts:new Date().toISOString(),
+    name:lastFood?lastFood.name:'Custom meal',
+    emoji:lastFood?lastFood.emoji:'🍽️',
+    nut:{...nut}
+  };
+  saveDayMeal(meal);
+  renderCalendar();
+  toast('Meal saved to history ✓','ok');
+}
+
+// Calendar state
+const today=new Date();
+calYear=today.getFullYear(); calMonth=today.getMonth();
+
+function calPrev(){ calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
+function calNext(){ calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
+
+function renderCalendar() {
+  const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('calTitle').textContent=MONTHS[calMonth]+' '+calYear;
+  const grid=document.getElementById('calGrid');
+  grid.innerHTML='';
+  const first=new Date(calYear,calMonth,1).getDay();
+  const days=new Date(calYear,calMonth+1,0).getDate();
+  const todayKey=today.toISOString().slice(0,10);
+
+  // Check if any meal exists anywhere
+  let anyMeals=false;
+
+  // Blank cells before first day
+  for(let i=0;i<first;i++){
+    const b=document.createElement('div'); b.className='cal-day'; grid.appendChild(b);
+  }
+
+  for(let d=1;d<=days;d++){
+    const date=new Date(calYear,calMonth,d);
+    const key=date.toISOString().slice(0,10);
+    const meals=getDayMeals(date);
+    const isToday=key===todayKey;
+    const el=document.createElement('div');
+
+    let dotColor='';
+    if(meals.length){
+      anyMeals=true;
+      const totalKJ=meals.reduce((s,m)=>s+(m.nut?.kJ||0),0);
+      const pct=totalKJ/getRDI().kJ;
+      dotColor=pct>0.9?'#ef4444':pct>0.5?'#f59e0b':'#10b981';
+    }
+
+    el.className='cal-day'+(meals.length?' has-data':'')+(isToday?' today':'');
+    el.innerHTML=`<span>${d}</span>${meals.length?`<div class="cal-dot" style="background:${dotColor}"></div>`:''}`;
+    el.onclick=()=>showDay(date,meals,key);
+    grid.appendChild(el);
+  }
+
+  // Update empty state
+  document.getElementById('histEmpty').classList.toggle('hidden', anyMeals);
+}
+
+function showDay(date,meals,key) {
+  // Deselect all, select this
+  document.querySelectorAll('.cal-day').forEach(d=>d.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+  selDay=key;
+
+  const el=document.getElementById('dayDetail');
+  if(!meals.length){ el.classList.add('hidden'); return; }
+
+  const totKJ=meals.reduce((s,m)=>s+(m.nut?.kJ||0),0);
+  const totPr=meals.reduce((s,m)=>s+(m.nut?.pr||0),0);
+  const totCa=meals.reduce((s,m)=>s+(m.nut?.ca||0),0);
+
+  document.getElementById('dayTitle').textContent=date.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+  document.getElementById('dayKJ').textContent=Math.round(totKJ).toLocaleString()+' kJ';
+  document.getElementById('dayPr').textContent=Math.round(totPr*10)/10+' g protein';
+  document.getElementById('dayCa').textContent=Math.round(totCa)+' mg Ca';
+
+  document.getElementById('dayMeals').innerHTML=meals.map(m=>`
+    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-950 rounded-xl px-3 py-2.5">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-lg">${m.emoji}</span>
+        <div class="min-w-0">
+          <p class="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">${m.name}</p>
+          <p class="font-mono text-[9px] text-slate-400">${new Date(m.ts).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</p>
+        </div>
+      </div>
+      <span class="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0 ml-2">${Math.round(m.nut?.kJ||0).toLocaleString()} kJ</span>
+    </div>`).join('');
+
+  el.classList.remove('hidden');
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ════════════════════════════════════════════════════════
+// SETTINGS
+// ════════════════════════════════════════════════════════
+function saveProfile() {
+  profile.age=parseInt(document.getElementById('pAge').value)||30;
+  profile.sex=document.getElementById('pSex').value;
+  profile.weight=parseFloat(document.getElementById('pWeight').value)||65;
+  profile.activity=document.getElementById('pActivity').value;
+  save(); calcNut();
+  const el=document.getElementById('profSaved');
+  el.classList.remove('hidden'); setTimeout(()=>el.classList.add('hidden'),2500);
+}
+
+function toggleDarkMode(){ document.documentElement.classList.toggle('dark'); }
+
+function openClearModal(){ document.getElementById('clearModal').classList.add('open'); }
+function closeClearModal(){ document.getElementById('clearModal').classList.remove('open'); }
+
+function clearAll() {
+  cabinet=[]; portions=[]; lastFood=null;
+  nut={kJ:0,ca:0,pr:0,fe:0,vc:0,fi:0,na:0};
+  try{ localStorage.clear(); }catch(e){}
+  document.getElementById('aiCard').classList.add('hidden');
+  closeClearModal(); syncAll(); toast('All data cleared','ok');
+}
+
+// ════════════════════════════════════════════════════════
+// TOAST (replaces all alert() / confirm())
+// ════════════════════════════════════════════════════════
+function toast(msg,type='ok') {
+  document.getElementById('_t')?.remove();
+  const bg={ok:'bg-emerald-600',warn:'bg-amber-500',err:'bg-rose-600'}[type]||'bg-slate-700';
+  const el=document.createElement('div');
+  el.id='_t'; el.className=`absolute bottom-24 left-4 right-4 z-50 ${bg} text-white text-xs font-bold text-center py-3 px-4 rounded-2xl shadow-xl toast`;
+  el.textContent=msg;
+  document.getElementById('app').appendChild(el);
+  setTimeout(()=>el.remove(),2800);
+}
+
+function ring(id){ const el=document.getElementById(id); if(!el) return; el.style.borderColor='#ef4444'; el.focus(); setTimeout(()=>el.style.borderColor='',1000); }
+
+// ════════════════════════════════════════════════════════
+// SYNC
+// ════════════════════════════════════════════════════════
+function syncAll(){
+  renderFilters(); renderCabinet(); renderSliders();
+}
+
+// ════════════════════════════════════════════════════════
+// MEAL HISTORY & CALENDAR
+// ════════════════════════════════════════════════════════
+function saveMealToHistory(){
+  if(!nut.kJ){ toast('Adjust portions or scan a meal first','warn'); return; }
+  const meal={id:Date.now(),ts:new Date().toISOString(),
+    name:lastFood?lastFood.name:'Custom meal',
+    emoji:lastFood?lastFood.emoji:'🍽️',nut:{...nut}};
+  try{
+    const k='nt_day_'+new Date().toISOString().slice(0,10);
+    const ms=JSON.parse(localStorage.getItem(k)||'[]');
+    ms.push(meal); localStorage.setItem(k,JSON.stringify(ms));
+  }catch(e){}
+  buildCal();
+  toast('Meal saved to history ✓','ok');
+}
+
+function getDayMeals(d){
+  try{ return JSON.parse(localStorage.getItem('nt_day_'+d.toISOString().slice(0,10))||'[]'); }
+  catch(e){ return []; }
+}
+
+const _today=new Date();
+let calY=_today.getFullYear(),calM=_today.getMonth();
+function calPrev(){ calM--; if(calM<0){calM=11;calY--;} buildCal(); }
+function calNext(){ calM++; if(calM>11){calM=0;calY++;} buildCal(); }
+
+function buildCal(){
+  const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('calTitle').textContent=MONTHS[calM]+' '+calY;
+  const grid=document.getElementById('calGrid'); if(!grid) return;
+  grid.innerHTML='';
+  const first=new Date(calY,calM,1).getDay();
+  const days=new Date(calY,calM+1,0).getDate();
+  const todayStr=_today.toISOString().slice(0,10);
+  let anyMeals=false;
+  for(let i=0;i<first;i++){const b=document.createElement('div');b.className='cal-day';grid.appendChild(b);}
+  for(let d=1;d<=days;d++){
+    const date=new Date(calY,calM,d);
+    const key=date.toISOString().slice(0,10);
+    const meals=getDayMeals(date);
+    if(meals.length) anyMeals=true;
+    const isToday=key===todayStr;
+    const rdi=getRDI();
+    const totalKJ=meals.reduce((s,m)=>s+(m.nut?.kJ||0),0);
+    const pct=totalKJ/rdi.kJ;
+    const dotCol=pct>.9?'#ef4444':pct>.5?'#f59e0b':'#10b981';
+    const el=document.createElement('div');
+    el.className='cal-day'+(meals.length?' has-data':'')+(isToday?' today':'');
+    el.innerHTML='<span>'+d+'</span>'+(meals.length?'<div class="cal-dot" style="background:'+dotCol+'"></div>':'');
+    el.onclick=(()=>{const _date=date,_meals=meals;return()=>showDay(_date,_meals,el)})();
+    grid.appendChild(el);
+  }
+  const empty=document.getElementById('histEmpty');
+  if(empty) empty.style.display=anyMeals?'none':'block';
+  document.getElementById('dayDetail').classList.add('hidden');
+}
+
+function showDay(date,meals,el){
+  document.querySelectorAll('.cal-day').forEach(d=>d.classList.remove('selected'));
+  el.classList.add('selected');
+  if(!meals.length){ document.getElementById('dayDetail').classList.add('hidden'); return; }
+  const totKJ=meals.reduce((s,m)=>s+(m.nut?.kJ||0),0);
+  const totCa=meals.reduce((s,m)=>s+(m.nut?.ca||0),0);
+  document.getElementById('dayLbl').textContent=date.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+  document.getElementById('dayKJ').textContent=Math.round(totKJ).toLocaleString()+' kJ';
+  document.getElementById('dayCa').textContent=Math.round(totCa)+' mg Ca';
+  document.getElementById('dayMeals').innerHTML=meals.map(m=>
+    '<div class="flex items-center justify-between bg-slate-50 dark:bg-slate-950 rounded-xl px-3 py-2.5">'+
+    '<div class="flex items-center gap-2 min-w-0">'+
+    '<span class="text-lg">'+m.emoji+'</span>'+
+    '<div class="min-w-0"><p class="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">'+m.name+'</p>'+
+    '<p class="font-mono text-[9px] text-slate-400">'+new Date(m.ts).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})+'</p></div></div>'+
+    '<span class="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 flex-shrink-0 ml-2">'+Math.round(m.nut?.kJ||0).toLocaleString()+' kJ</span>'+
+    '</div>'
+  ).join('');
+  document.getElementById('dayDetail').classList.remove('hidden');
+}
+
+// ════════════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════════════
+if(window.matchMedia('(prefers-color-scheme:dark)').matches)
+  document.documentElement.classList.add('dark');
+
+load();
+
+window.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('pAge').value=profile.age;
+  document.getElementById('pSex').value=profile.sex;
+  document.getElementById('pWeight').value=profile.weight;
+  document.getElementById('pActivity').value=profile.activity;
+  switchTab('scan');
+  syncAll();
+});
+
+window.addEventListener('beforeunload',save);
+
+// Service worker — enables offline + PWA install
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+// First run tip
+if(!localStorage.getItem('nt_welcomed')){
+  localStorage.setItem('nt_welcomed','1');
+  setTimeout(()=>toast('👋 Tap the shutter to scan your first meal!','ok'),1500);
+}
+</script>
+</body>
+</html>
