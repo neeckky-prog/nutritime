@@ -20,7 +20,7 @@ const handler = async (req, res) => {
   if (!base64) return res.status(400).json({ error: 'No image received' });
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
 
     const geminiRes = await fetch(url, {
       method:  'POST',
