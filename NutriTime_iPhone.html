@@ -677,15 +677,26 @@ function diagnoseCamera(){
     ]
   };
 
-  // navigator.mediaDevices missing entirely (very restricted context)
+  // navigator.mediaDevices is undefined — Safari iOS blocks it on plain HTTP IPs
   if(!navigator.mediaDevices||typeof navigator.mediaDevices.getUserMedia!=='function'){
-    // Could be HTTP on a strict browser — give them a try-anyway option
+    const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    if(isIOS){
+      return{
+        reason:'🔒 Safari on iPhone blocks camera access on plain HTTP addresses (192.168.x.x). You need HTTPS — but it's free and takes 2 minutes to set up.',
+        steps:[
+          {icon:'1️⃣',text:'<strong>Fastest (2 min):</strong> Go to <strong>netlify.com/drop</strong> on your computer → drag your HTML file onto the page → get a free HTTPS link instantly'},
+          {icon:'2️⃣',text:'<strong>Free forever:</strong> Upload to <strong>GitHub Pages</strong> (github.com → new repo → upload file → Settings → Pages) → get https://yourname.github.io/...'},
+          {icon:'3️⃣',text:'<strong>On same Mac:</strong> Run <code>npx serve --ssl</code> in your nutritime folder for a local HTTPS server'},
+          {icon:'🎭',text:'While you set this up: Demo Mode works fine — tap the shutter to see nutrition data'}
+        ]
+      };
+    }
     return{
-      reason:'📷 The camera API is not available in this browser context. This can happen on some HTTP connections.',
+      reason:'📷 Camera API not available. Your browser may be blocking it due to the HTTP connection.',
       steps:[
-        {icon:'🔄',text:'Try tapping Enable Camera anyway — it may still work on your network'},
-        {icon:'🧭',text:'Make sure you are using <strong>Safari</strong> on iPhone, not Chrome'},
-        {icon:'🔒',text:'If it keeps failing: use <strong>https://</strong> or <strong>localhost</strong> instead of an IP address'}
+        {icon:'🔒',text:'Open the app via <strong>HTTPS</strong> or <strong>http://localhost:8080</strong>'},
+        {icon:'🧭',text:'On iPhone use <strong>Safari</strong>, not Chrome'},
+        {icon:'🔄',text:'Reload and try again'}
       ]
     };
   }
@@ -779,7 +790,7 @@ function triggerShutter(){
 async function liveAI(b64,preview){
   showSpinner();
   try{
-    let res=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base64:b64})}).catch(()=>null);
+    let res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({base64:b64})}).catch(()=>null);
     if(!res||!res.ok){
       res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1024,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},{type:'text',text:'Identify every food visible. Return ONLY a valid JSON array:\n[{"name":"Food","portionG":100,"calories":200,"energyKJ":837,"proteinG":8,"carbsG":30,"fatG":5,"calciumMg":100,"ironMg":2,"vitaminCMg":5,"sodiumMg":300,"fiberG":3}]'}]}]})});
       if(res.ok){const d=await res.json();const raw=d.content.map(b=>b.text||'').join('');applyAI(JSON.parse(raw.replace(/```json|```/g,'').trim()),preview);hideSpinner();return;}
