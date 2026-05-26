@@ -52,7 +52,7 @@ Return ONLY a valid JSON array — no markdown, no code fences, no explanation, 
 
 Rules:
 - One object per distinct food item
-- Estimate realistic portion sizes from what you can see
+- Identify the food and estimate the portion size in grams. If the image is ambiguous, provide a range (e.g., 100-150g) and default to the most likely realistic portion for a standard serving.
 - energyKJ must equal calories multiplied by 4.184
 - Start your response with [ and end with ]
 - Return nothing outside the JSON array`
