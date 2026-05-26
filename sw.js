@@ -1,48 +1,43 @@
-// NutriTime Service Worker — v1.0
-// Caches the app shell for offline use
-
-const CACHE_NAME = 'nutritime-v1';
+// NutriTime Service Worker v1.1
+const CACHE = 'nutritime-v2';
 const ASSETS = [
-  './NutriTime_iPhone.html',
+  './index.html',
   './manifest.json'
 ];
 
-// Install: cache the app shell
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE)
+      .then(c => c.addAll(ASSETS))
       .then(() => self.skipWaiting())
   );
 });
 
-// Activate: remove old caches
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch: cache-first for app shell, network-first for everything else
 self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
-  // App shell — serve from cache immediately
-  if (ASSETS.some(a => url.pathname.endsWith(a.replace('./', '')))) {
-    e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request))
-    );
+  // Never intercept API calls — always go to network
+  if (e.request.url.includes('/api/')) {
+    e.respondWith(fetch(e.request));
     return;
   }
-  // Fonts, Tailwind CDN, Unsplash images — network with cache fallback
+  // App shell — cache first
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-        return res;
-      })
-      .catch(() => caches.match(e.request))
+    caches.match(e.request)
+      .then(cached => cached || fetch(e.request)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+          return res;
+        })
+      )
   );
 });
